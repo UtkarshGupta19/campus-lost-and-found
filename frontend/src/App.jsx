@@ -22,7 +22,7 @@ export default function App() {
 
   const fetchItems = async () => {
     try {
-      const res = await axios.get(`http://localhost:8000/api/items?type=${filterType}&search=${searchTerm}`);
+      const res = await axios.get(`https://campus-lost-and-found-xxt3.onrender.com/api/items?type=${filterType}&search=${searchTerm}`);
       setItems(res.data);
     } catch (err) {
       console.error('Error fetching items:', err);
@@ -43,9 +43,9 @@ export default function App() {
         data.append('image', selectedFile);
       }
 
-      const res = await axios.post('http://localhost:8000/api/items', data, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
+      const res = await axios.post('https://campus-lost-and-found-xxt3.onrender.com/api/items', data, {
+  headers: { 'Content-Type': 'multipart/form-data' }
+});
 
       if (res.data.matches && res.data.matches.length > 0) {
         setMatches(res.data.matches);
@@ -73,7 +73,7 @@ export default function App() {
 
   const markReturned = async (id) => {
     try {
-      await axios.patch(`http://localhost:8000/api/items/${id}/return`);
+      await axios.patch(`https://campus-lost-and-found-xxt3.onrender.com/api/items/${id}/return`);
       fetchItems();
     } catch (err) {
       console.error(err);
