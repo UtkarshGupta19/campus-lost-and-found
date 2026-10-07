@@ -1,6 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
 require('dotenv').config();
 
 const Item = require('./models/Item');
@@ -8,7 +10,17 @@ const { calculateMatchScore } = require('./utils/matchingEngine');
 
 const app = express();
 
-// Standard CORS handles all OPTIONS preflights automatically
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET
+});
+
+// Configure Multer memory storage
+const storage = multer.memoryStorage();
+const upload = multer({ storage });
+
 app.use(cors());
 app.use(express.json());
 
@@ -18,16 +30,31 @@ app.use((req, res, next) => {
   next();
 });
 
-// Test route
+// Health check route
 app.get('/', (req, res) => {
   res.send('API is running!');
 });
 
-// Route 1: Post item + auto match
-app.post('/api/items', async (req, res) => {
-  console.log('📦 Data received:', req.body);
+// Route 1: Post item (with optional image) + auto match
+app.post('/api/items', upload.single('image'), async (req, res) => {
   try {
-    const { title, description, category, type, location, date, contactEmail, imageUrl } = req.body;
+    const { title, description, category, type, location, date, contactEmail } = req.body;
+    let imageUrl = '';
+
+    // Upload image buffer to Cloudinary if provided
+    if (req.file) {
+      const uploadResult = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: 'campus_lost_found' },
+          (error, result) => {
+            if (error) reject(error);
+            else resolve(result);
+          }
+        );
+        stream.end(req.file.buffer);
+      });
+      imageUrl = uploadResult.secure_url;
+    }
 
     const newItem = await Item.create({
       title,
@@ -37,7 +64,7 @@ app.post('/api/items', async (req, res) => {
       location,
       date: date ? new Date(date) : new Date(),
       contactEmail,
-      imageUrl: imageUrl || ''
+      imageUrl
     });
 
     const oppositeType = type === 'lost' ? 'found' : 'lost';

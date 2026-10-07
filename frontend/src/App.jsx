@@ -6,6 +6,8 @@ export default function App() {
   const [matches, setMatches] = useState([]);
   const [filterType, setFilterType] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Form State
   const [formData, setFormData] = useState({
@@ -15,11 +17,9 @@ export default function App() {
     type: 'lost',
     location: 'CSE Block',
     date: '',
-    contactEmail: '',
-    imageUrl: ''
+    contactEmail: ''
   });
 
-  // Fetch items from the backend
   const fetchItems = async () => {
     try {
       const res = await axios.get(`http://localhost:8000/api/items?type=${filterType}&search=${searchTerm}`);
@@ -33,20 +33,26 @@ export default function App() {
     fetchItems();
   }, [filterType, searchTerm]);
 
-  // Handle reporting an item
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
-      const res = await axios.post('http://localhost:8000/api/items', formData);
-      
-      // If matching engine finds candidates, pop up the alert
+      const data = new FormData();
+      Object.keys(formData).forEach((key) => data.append(key, formData[key]));
+      if (selectedFile) {
+        data.append('image', selectedFile);
+      }
+
+      const res = await axios.post('http://localhost:8000/api/items', data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
       if (res.data.matches && res.data.matches.length > 0) {
         setMatches(res.data.matches);
       } else {
         alert('Item successfully reported!');
       }
 
-      // Reset form
       setFormData({
         title: '',
         description: '',
@@ -54,17 +60,17 @@ export default function App() {
         type: 'lost',
         location: 'CSE Block',
         date: '',
-        contactEmail: '',
-        imageUrl: ''
+        contactEmail: ''
       });
-
+      setSelectedFile(null);
       fetchItems();
     } catch (err) {
       alert('Error submitting report. Check backend console.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
-  // Mark an item as returned
   const markReturned = async (id) => {
     try {
       await axios.patch(`http://localhost:8000/api/items/${id}/return`);
@@ -76,7 +82,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-800 pb-16">
-      {/* Top Navbar */}
       <header className="bg-white border-b border-slate-200 px-8 py-4 flex justify-between items-center shadow-xs">
         <div>
           <h1 className="text-xl font-bold text-indigo-600 tracking-wide">Campus Lost & Found</h1>
@@ -90,7 +95,7 @@ export default function App() {
       {/* Match Alert Notification Modal */}
       {matches.length > 0 && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white p-6 rounded-2xl max-w-lg w-full shadow-2xl animate-in fade-in">
+          <div className="bg-white p-6 rounded-2xl max-w-lg w-full shadow-2xl">
             <div className="flex items-center gap-2 mb-2">
               <span className="text-2xl">🎉</span>
               <h3 className="text-lg font-bold text-emerald-600">Possible Matches Detected!</h3>
@@ -100,15 +105,20 @@ export default function App() {
             </p>
             <div className="space-y-3 max-h-64 overflow-y-auto pr-1">
               {matches.map(({ item, score }) => (
-                <div key={item._id} className="border border-slate-200 p-3.5 rounded-xl flex justify-between items-center bg-slate-50">
-                  <div>
-                    <p className="font-semibold text-sm text-slate-800">{item.title}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">
-                      📍 {item.location} • 📅 {new Date(item.date).toLocaleDateString()}
-                    </p>
-                    <p className="text-xs text-indigo-600 mt-1">Contact: {item.contactEmail}</p>
+                <div key={item._id} className="border border-slate-200 p-3.5 rounded-xl flex items-center justify-between bg-slate-50 gap-3">
+                  <div className="flex items-center gap-3">
+                    {item.imageUrl && (
+                      <img src={item.imageUrl} alt={item.title} className="w-12 h-12 object-cover rounded-lg border border-slate-200 shrink-0" />
+                    )}
+                    <div>
+                      <p className="font-semibold text-sm text-slate-800">{item.title}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">
+                        📍 {item.location} • 📅 {new Date(item.date).toLocaleDateString()}
+                      </p>
+                      <p className="text-xs text-indigo-600 mt-1">Contact: {item.contactEmail}</p>
+                    </div>
                   </div>
-                  <span className="bg-emerald-100 text-emerald-800 text-xs px-3 py-1 rounded-full font-bold">
+                  <span className="bg-emerald-100 text-emerald-800 text-xs px-3 py-1 rounded-full font-bold shrink-0">
                     {score}% Match
                   </span>
                 </div>
@@ -126,8 +136,7 @@ export default function App() {
 
       {/* Main Grid */}
       <main className="max-w-6xl mx-auto mt-8 px-4 grid grid-cols-1 md:grid-cols-3 gap-8">
-        
-        {/* Left Column: Report Form */}
+        {/* Left Column: Form */}
         <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs h-fit">
           <h2 className="text-base font-bold text-slate-800 mb-4">Report Item</h2>
           <form onSubmit={handleSubmit} className="space-y-3 text-sm">
@@ -204,6 +213,16 @@ export default function App() {
             </div>
 
             <div>
+              <label className="block text-xs font-semibold text-slate-500 mb-1">Upload Photo (Optional)</label>
+              <input
+                type="file"
+                accept="image/*"
+                className="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100"
+                onChange={(e) => setSelectedFile(e.target.files[0] || null)}
+              />
+            </div>
+
+            <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1">Description</label>
               <textarea
                 required
@@ -217,14 +236,15 @@ export default function App() {
 
             <button
               type="submit"
-              className="w-full bg-indigo-600 text-white font-medium py-2.5 rounded-xl hover:bg-indigo-700 transition cursor-pointer mt-2"
+              disabled={isSubmitting}
+              className="w-full bg-indigo-600 text-white font-medium py-2.5 rounded-xl hover:bg-indigo-700 transition cursor-pointer mt-2 disabled:opacity-50"
             >
-              Submit Report
+              {isSubmitting ? 'Uploading & Processing...' : 'Submit Report'}
             </button>
           </form>
         </div>
 
-        {/* Right Column: Search & Live Item Feed */}
+        {/* Right Column: Search & Live Feed */}
         <div className="md:col-span-2 space-y-4">
           <div className="flex gap-3">
             <input
@@ -247,7 +267,7 @@ export default function App() {
 
           {items.length === 0 ? (
             <div className="bg-white border border-slate-200 rounded-2xl p-10 text-center text-slate-400">
-              No reports found. Submit a report using the form to get started!
+              No reports found. Submit a report to get started!
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -256,6 +276,9 @@ export default function App() {
                   key={item._id}
                   className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between"
                 >
+                  {item.imageUrl && (
+                    <img src={item.imageUrl} alt={item.title} className="w-full h-44 object-cover border-b border-slate-100" />
+                  )}
                   <div className="p-5">
                     <div className="flex justify-between items-start mb-2">
                       <span
